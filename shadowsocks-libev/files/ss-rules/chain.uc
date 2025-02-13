@@ -41,16 +41,14 @@ function get_ifnames() {
 
 let type, hook, priority, redir_port;
 if (proto == "tcp") {
-	type = "nat";
-	hook = "prerouting";
-	priority = -1;
 	redir_port = o_redir_tcp_port;
 } else if (proto == "udp") {
+	redir_port = o_redir_udp_port;
+}
 	type = "filter";
 	hook = "prerouting";
 	priority = "mangle";
-	redir_port = o_redir_udp_port;
-	if (system("
+	system("
 		set -o errexit
 		iprr() {
 			while ip $1 rule del fwmark 1 lookup 100 2>/dev/null; do true; done
@@ -60,12 +58,7 @@ if (proto == "tcp") {
 		}
 		iprr -4
 		iprr -6
-	") != 0) {
-		return ;
-	}
-} else {
-	return;
-}
+	")
 
 %}
 {% if (redir_port): %}
@@ -85,9 +78,9 @@ chain ss_rules_src_{{ proto }} {
 	ip saddr @ss_rules_src_bypass accept;
 	ip saddr @ss_rules_src_forward goto ss_rules_forward_{{ proto }};
 	ip saddr @ss_rules_src_checkdst goto ss_rules_dst_{{ proto }};
-	ip6 saddr @ss_rules6_src_bypass accept;
-	ip6 saddr @ss_rules6_src_forward goto ss_rules_forward_{{ proto }};
-	ip6 saddr @ss_rules6_src_checkdst goto ss_rules_dst_{{ proto }};
+	ip6 saddr & ::ffff:ffff:ffff:ffff @ss_rules6_src_bypass accept;
+	ip6 saddr & ::ffff:ffff:ffff:ffff @ss_rules6_src_forward goto ss_rules_forward_{{ proto }};
+	ip6 saddr & ::ffff:ffff:ffff:ffff @ss_rules6_src_checkdst goto ss_rules_dst_{{ proto }};
 	{{ get_src_default_verdict() }};
 }
 
@@ -101,7 +94,7 @@ chain ss_rules_dst_{{ proto }} {
 
 {%   if (proto == "tcp"): %}
 chain ss_rules_forward_{{ proto }} {
-	meta l4proto tcp {{ o_nft_tcp_extra }} redirect to :{{ redir_port }};
+	meta l4proto tcp {{ o_nft_tcp_extra }} meta mark set 1 tproxy to :{{ redir_port }};
 }
 {%   let local_verdict = get_local_verdict(); if (local_verdict): %}
 chain ss_rules_local_out {

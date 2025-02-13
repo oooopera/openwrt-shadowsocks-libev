@@ -69,6 +69,7 @@ ss_xxx() {
 	json_init
 	ss_mkjson_${cfgtype}_conf || return
 	json_add_boolean use_syslog 1
+	json_add_boolean tcp_tproxy 1
 	json_add_boolean ipv6_first "$ipv6_first"
 	json_add_boolean fast_open "$fast_open"
 	json_add_boolean reuse_port "$reuse_port"
